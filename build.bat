@@ -62,6 +62,7 @@ echo Building portable executable...
     --add-data "%SOURCEDIR%\constants\*.py;.\src\%MODULENAME%\constants" ^
     --add-data "%SOURCEDIR%\helpers\*.py;.\src\%MODULENAME%\helpers" ^
     --add-data "%RESOURCEDIR%\*;.\src\%MODULENAME%\resources" ^
+    --copy-metadata imageio ^
     --version-file "%VERSIONINFO%" ^
     "%ENTRYPOINT%"
 if errorlevel 1 goto ERROR

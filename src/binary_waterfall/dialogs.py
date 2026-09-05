@@ -493,6 +493,10 @@ class BwvQuickSettings(QDialog):
         self.audio_label = QLabel("Audio:")
         self.audio_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
+        self.layout_value = QLabel("Frame End, playhead off, vertical flip on")
+        self.layout_label = QLabel("Video layout:")
+        self.layout_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
         self.note = QLabel("Enter the width, height, and sample rate printed by bwv_encode.")
         self.confirm_buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         self.confirm_buttons.accepted.connect(self.accept)
@@ -512,7 +516,9 @@ class BwvQuickSettings(QDialog):
         layout.addWidget(self.sample_rate_entry, 5, 1)
         layout.addWidget(self.audio_label, 6, 0)
         layout.addWidget(self.audio_value, 6, 1)
-        layout.addWidget(self.confirm_buttons, 7, 0, 1, 2)
+        layout.addWidget(self.layout_label, 7, 0)
+        layout.addWidget(self.layout_value, 7, 1)
+        layout.addWidget(self.confirm_buttons, 8, 0, 1, 2)
         self.setLayout(layout)
         self.setFixedSize(self.sizeHint())
 

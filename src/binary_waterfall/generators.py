@@ -372,8 +372,15 @@ class BinaryWaterfall:
         # Get the total number of blocks (rows) in the file (round up because we don't want to clip a row off)
         total_blocks = math.ceil(self.total_bytes / address_block_size)
 
-        # Get the block index of the current audio location
-        address_block_index = round(total_blocks * (ms / self.audio_length_ms))
+        # bwv_encode derives its sample rate so every video frame occupies an
+        # exact number of audio samples. Use that byte rate directly instead
+        # of scaling against a rounded WAV duration, which accumulates drift.
+        if os.path.splitext(self.filename)[1].lower() == ".bwv":
+            bytes_per_second = self.sample_rate * self.num_channels * self.sample_bytes
+            address_block_index = round((ms * bytes_per_second) / (1000 * address_block_size))
+        else:
+            # Get the block index of the current audio location
+            address_block_index = round(total_blocks * (ms / self.audio_length_ms))
 
         # Adjust index for other alignments
         if self.alignment == constants.AlignmentCode.START:

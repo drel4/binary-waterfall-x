@@ -59,7 +59,8 @@ https://github.com/nimaid/binary-waterfall
 - **BWV Quick Settings:** optionally prompts when opening `.bwv` output from
   [bwv_encode](https://github.com/randomtypek/bwv_encode). It supports the encoder's grayscale/RGB
   layouts and 25/20/10/5 FPS choices, fixes audio at stereo 32-bit, and asks for the width, height,
-  and sample rate printed by the encoder. Toggle the prompt under Settings.
+  and sample rate printed by the encoder. It also applies Frame End alignment, hides the playhead,
+  and enables the encoder's default vertical flip. Toggle the prompt under Settings.
 - **Drag and drop:** drop a local file onto the main window to open it.
 - **Reliable playback controls:** play/pause tracks intended state and Play restarts files that have
   reached the end.

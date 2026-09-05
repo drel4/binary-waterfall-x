@@ -314,11 +314,21 @@ class Player:
         if position >= self.get_duration():
             self.set_position(self.get_duration())
 
+    def get_display_timestamp(self, ms):
+        """Keep bwv_encode output on whole encoded-frame boundaries."""
+        if (
+            self.timing_mode != constants.TimingModeCode.OFF
+            and self.is_bwv_file(self.bw.filename)
+        ):
+            frame_index = math.floor((ms * self.fps) / 1000)
+            return min(round((frame_index * 1000) / self.fps), self.get_duration())
+        return ms
+
     def set_image_timestamp(self, ms):
         if self.bw.filename is None:
             self.clear_image()
         else:
-            self.set_image(self.bw.get_frame_qimage(ms))
+            self.set_image(self.bw.get_frame_qimage(self.get_display_timestamp(ms)))
 
     def update_image(self):
         ms = self.get_position()

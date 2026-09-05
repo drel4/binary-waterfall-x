@@ -443,6 +443,9 @@ class MyQMainWindow(QMainWindow):
                 else "rxxxgxxxbxxx"
             )
             self.bw.set_color_format(color_format)
+            self.bw.set_alignment(constants.AlignmentCode.END)
+            self.bw.set_playhead_visible(False)
+            self.bw.set_flip(flip_v=True, flip_h=False)
             self.bw.set_audio_settings(
                 num_channels=2,
                 sample_bytes=4,

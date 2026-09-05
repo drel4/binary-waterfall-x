@@ -19,37 +19,38 @@ set "VERSIONINFO=%ROOTDIR%\file_version_info.txt"
 set "RESOURCEDIR=%SOURCEDIR%\resources"
 set "ICONFILE=%RESOURCEDIR%\icon.ico"
 set "SPLASHFILE=%RESOURCEDIR%\splash.jpg"
-set "VERSIONARG="
+set "VENVDIR=%ROOTDIR%\.venv"
+set "VENVPYTHON=%ROOTDIR%\.venv\Scripts\python.exe"
+set "VERSIONTOOL=%ROOTDIR%\.venv\Scripts\create-version-file.exe"
+set "BUILDTOOLS=pyinstaller pyinstaller-versionfile"
+if /i "%~1"=="pypi" set "BUILDTOOLS=%BUILDTOOLS% build"
 
-where pyinstaller >nul 2>&1
+where python >nul 2>&1
 if errorlevel 1 (
-    echo ERROR: PyInstaller was not found on PATH.
-    echo Install it with: python -m pip install pyinstaller
+    echo ERROR: Python was not found on PATH.
     goto ERROR
 )
 
+if not exist "%VENVPYTHON%" (
+    echo Creating build environment at "%VENVDIR%"...
+    python -m venv "%VENVDIR%"
+    if errorlevel 1 goto ERROR
+)
+
+echo Installing build dependencies into the virtual environment...
+"%VENVPYTHON%" -m pip install --disable-pip-version-check -e "%ROOTDIR%" %BUILDTOOLS%
+if errorlevel 1 goto ERROR
+
 echo Cleaning previous executable build...
 if exist "%TARGETEXE%" del /f /q "%TARGETEXE%"
-if exist "%DISTDIR%" rmdir /s /q "%DISTDIR%"
-if exist "%BUILDDIR%" rmdir /s /q "%BUILDDIR%"
-if exist "%SPECFILE%" del /f /q "%SPECFILE%"
-if exist "%VERSIONINFO%" del /f /q "%VERSIONINFO%"
-
-rem pyinstaller-versionfile is optional. A missing helper should not prevent
-rem users who only installed PyInstaller from producing an executable.
-where create-version-file >nul 2>&1
-if errorlevel 1 goto SKIP_VERSION_INFO
+call :CLEAN_BUILD_FILES
 
 echo Generating Windows version information...
-create-version-file "%VERSIONYAML%" --outfile "%VERSIONINFO%"
+"%VERSIONTOOL%" "%VERSIONYAML%" --outfile "%VERSIONINFO%"
 if errorlevel 1 goto ERROR
-set "VERSIONARG=--version-file=%VERSIONINFO%"
-
-:SKIP_VERSION_INFO
-if not defined VERSIONARG echo Version metadata helper not found; continuing without it.
 
 echo Building portable executable...
-pyinstaller ^
+"%VENVPYTHON%" -m PyInstaller ^
     --clean ^
     --noconfirm ^
     --noconsole ^
@@ -61,7 +62,7 @@ pyinstaller ^
     --add-data "%SOURCEDIR%\constants\*.py;.\src\%MODULENAME%\constants" ^
     --add-data "%SOURCEDIR%\helpers\*.py;.\src\%MODULENAME%\helpers" ^
     --add-data "%RESOURCEDIR%\*;.\src\%MODULENAME%\resources" ^
-    %VERSIONARG% ^
+    --version-file "%VERSIONINFO%" ^
     "%ENTRYPOINT%"
 if errorlevel 1 goto ERROR
 
@@ -74,17 +75,14 @@ move /y "%BUILTEXE%" "%TARGETEXE%" >nul
 if errorlevel 1 goto ERROR
 
 echo Cleaning temporary executable build files...
-if exist "%DISTDIR%" rmdir /s /q "%DISTDIR%"
-if exist "%BUILDDIR%" rmdir /s /q "%BUILDDIR%"
-if exist "%SPECFILE%" del /f /q "%SPECFILE%"
-if exist "%VERSIONINFO%" del /f /q "%VERSIONINFO%"
+call :CLEAN_BUILD_FILES
 
 if /i not "%~1"=="pypi" goto DONE
 
 echo Building Python package...
-python -m build
+"%VENVPYTHON%" -m build
 if errorlevel 1 (
-    echo ERROR: Python package build failed. Install it with: python -m pip install build
+    echo ERROR: Python package build failed.
     goto ERROR
 )
 
@@ -96,6 +94,14 @@ exit /b 0
 
 :ERROR
 echo Build failed.
+call :CLEAN_BUILD_FILES
 popd
 endlocal
 exit /b 1
+
+:CLEAN_BUILD_FILES
+if exist "%DISTDIR%" rmdir /s /q "%DISTDIR%"
+if exist "%BUILDDIR%" rmdir /s /q "%BUILDDIR%"
+if exist "%SPECFILE%" del /f /q "%SPECFILE%"
+if exist "%VERSIONINFO%" del /f /q "%VERSIONINFO%"
+exit /b 0

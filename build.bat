@@ -1,78 +1,101 @@
 @echo off
+setlocal
 
-set MAINFAILENAME=binary-waterfall
-set ENVNAME=%MAINFAILENAME%
-set BUILDENVNAME=build
-set MODULENAME=binary_waterfall
+rem Always build relative to this script, not the caller's working directory.
+pushd "%~dp0" || goto ERROR
 
-set ORIGDIR=%CD%
-set SOURCEDIR=%ORIGDIR%\src\%MODULENAME%
-set DISTDIR=%ORIGDIR%\dist
-set BUILDDIR=%ORIGDIR%\build
+set "MAINFILENAME=binary-waterfall"
+set "MODULENAME=binary_waterfall"
+set "ROOTDIR=%CD%"
+set "SOURCEDIR=%ROOTDIR%\src\%MODULENAME%"
+set "DISTDIR=%ROOTDIR%\dist"
+set "BUILDDIR=%ROOTDIR%\build"
+set "ENTRYPOINT=%ROOTDIR%\%MAINFILENAME%.py"
+set "SPECFILE=%ROOTDIR%\%MAINFILENAME%.spec"
+set "BUILTEXE=%DISTDIR%\%MAINFILENAME%.exe"
+set "TARGETEXE=%ROOTDIR%\%MAINFILENAME%.exe"
+set "VERSIONYAML=%SOURCEDIR%\version.yml"
+set "VERSIONINFO=%ROOTDIR%\file_version_info.txt"
+set "RESOURCEDIR=%SOURCEDIR%\resources"
+set "ICONFILE=%RESOURCEDIR%\icon.ico"
+set "SPLASHFILE=%RESOURCEDIR%\splash.jpg"
+set "VERSIONARG="
 
-set PY=%ORIGDIR%\%MAINFAILENAME%.py
-set SPEC=%ORIGDIR%\%MAINFAILENAME%.spec
-set EXE=%DISTDIR%\%MAINFAILENAME%.exe
-set TARGETEXE=%ORIGDIR%\%MAINFAILENAME%.exe
+where pyinstaller >nul 2>&1
+if errorlevel 1 (
+    echo ERROR: PyInstaller was not found on PATH.
+    echo Install it with: python -m pip install pyinstaller
+    goto ERROR
+)
 
-set VERSION_YAML=%SOURCEDIR%\version.yml
-set VERSION_INFO=%ORIGDIR%\file_version_info.txt
+echo Cleaning previous executable build...
+if exist "%TARGETEXE%" del /f /q "%TARGETEXE%"
+if exist "%DISTDIR%" rmdir /s /q "%DISTDIR%"
+if exist "%BUILDDIR%" rmdir /s /q "%BUILDDIR%"
+if exist "%SPECFILE%" del /f /q "%SPECFILE%"
+if exist "%VERSIONINFO%" del /f /q "%VERSIONINFO%"
 
-set RESOURCEDIR=%SOURCEDIR%\resources
-set ICON_ICO=%RESOURCEDIR%\icon.ico
-set SPLASH_IMG=%RESOURCEDIR%\splash.jpg
+rem pyinstaller-versionfile is optional. A missing helper should not prevent
+rem users who only installed PyInstaller from producing an executable.
+where create-version-file >nul 2>&1
+if errorlevel 1 goto SKIP_VERSION_INFO
 
-echo Cleaning up before making release...
-del /f /q "%TARGETEXE%" 1>nul 2>&1
-del /f /s /q "%DISTDIR%" 1>nul 2>&1
-rmdir /s /q "%DISTDIR%" 1>nul 2>&1
-del /f /s /q "%BUILDDIR%" 1>nul 2>&1
-rmdir /s /q "%BUILDDIR%" 1>nul 2>&1
-del /f /q "%SPEC%" 1>nul 2>&1
-del /f /q "%VERSION_INFO%" 1>nul 2>&1
-
-echo Building portable EXE...
-del /f /s /q "%TARGETEXE%" 1>nul 2>&1
-call conda run -n %ENVNAME% create-version-file %VERSION_YAML% --outfile %VERSION_INFO%
+echo Generating Windows version information...
+create-version-file "%VERSIONYAML%" --outfile "%VERSIONINFO%"
 if errorlevel 1 goto ERROR
-call conda run -n %ENVNAME% pyinstaller ^
+set "VERSIONARG=--version-file=%VERSIONINFO%"
+
+:SKIP_VERSION_INFO
+if not defined VERSIONARG echo Version metadata helper not found; continuing without it.
+
+echo Building portable executable...
+pyinstaller ^
     --clean ^
     --noconfirm ^
     --noconsole ^
-	--add-data %SOURCEDIR%\*.py;.\src\%MODULENAME% ^
-	--add-data %SOURCEDIR%\version.yml;.\src\%MODULENAME% ^
-	--add-data %SOURCEDIR%\constants\*.py;.\src\%MODULENAME%\constants ^
-	--add-data %SOURCEDIR%\helpers\*.py;.\src\%MODULENAME%\helpers ^
-	--add-data %SOURCEDIR%\resources\*;.\src\%MODULENAME%\resources ^
     --onefile ^
-    --icon=%ICON_ICO% ^
-    --splash=%SPLASH_IMG% ^
-    --version-file=%VERSION_INFO% ^
-    "%PY%"
+    --icon "%ICONFILE%" ^
+    --splash "%SPLASHFILE%" ^
+    --add-data "%SOURCEDIR%\*.py;.\src\%MODULENAME%" ^
+    --add-data "%SOURCEDIR%\version.yml;.\src\%MODULENAME%" ^
+    --add-data "%SOURCEDIR%\constants\*.py;.\src\%MODULENAME%\constants" ^
+    --add-data "%SOURCEDIR%\helpers\*.py;.\src\%MODULENAME%\helpers" ^
+    --add-data "%RESOURCEDIR%\*;.\src\%MODULENAME%\resources" ^
+    %VERSIONARG% ^
+    "%ENTRYPOINT%"
 if errorlevel 1 goto ERROR
 
-echo Cleaning up after making .exe release...
-move "%EXE%" "%TARGETEXE%"
-del /f /s /q "%DISTDIR%" 1>nul 2>&1
-rmdir /s /q "%DISTDIR%" 1>nul 2>&1
-del /f /s /q "%BUILDDIR%" 1>nul 2>&1
-rmdir /s /q "%BUILDDIR%" 1>nul 2>&1
-del /f /q "%SPEC%" 1>nul 2>&1
-del /f /q "%VERSION_INFO%" 1>nul 2>&1
+if not exist "%BUILTEXE%" (
+    echo ERROR: PyInstaller completed without creating "%BUILTEXE%".
+    goto ERROR
+)
 
-echo Making PyPI release...
-call conda run -n %BUILDENVNAME% python -m build
+move /y "%BUILTEXE%" "%TARGETEXE%" >nul
 if errorlevel 1 goto ERROR
 
-goto DONE
+echo Cleaning temporary executable build files...
+if exist "%DISTDIR%" rmdir /s /q "%DISTDIR%"
+if exist "%BUILDDIR%" rmdir /s /q "%BUILDDIR%"
+if exist "%SPECFILE%" del /f /q "%SPECFILE%"
+if exist "%VERSIONINFO%" del /f /q "%VERSIONINFO%"
 
+if /i not "%~1"=="pypi" goto DONE
 
-:ERROR
-cd %ORIGDIR%
-echo Build failed!
-exit /B 1
+echo Building Python package...
+python -m build
+if errorlevel 1 (
+    echo ERROR: Python package build failed. Install it with: python -m pip install build
+    goto ERROR
+)
 
 :DONE
-cd %ORIGDIR%
-echo Build done!
-exit /B 0
+echo Build complete: "%TARGETEXE%"
+popd
+endlocal
+exit /b 0
+
+:ERROR
+echo Build failed.
+popd
+endlocal
+exit /b 1

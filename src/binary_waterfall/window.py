@@ -1,10 +1,10 @@
 import os
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt, QTimer, QUrl
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QGridLayout, QHBoxLayout, QLabel,
     QFileDialog, QAction, QMessageBox, QSlider, QProgressDialog
 )
-from PyQt5.QtGui import QPixmap, QIcon
+from PyQt5.QtGui import QDesktopServices, QPixmap, QIcon
 
 from . import constants, generators, outputs, widgets, dialogs, preferences
 
@@ -243,6 +243,10 @@ class MyQMainWindow(QMainWindow):
         self.help_menu_hotkeys = QAction("Hotkeys...", self)
         self.help_menu_hotkeys.triggered.connect(self.hotkeys_clicked)
         self.help_menu.addAction(self.help_menu_hotkeys)
+
+        self.help_menu_bwv_encode = QAction("bwv_encode (External)...", self)
+        self.help_menu_bwv_encode.triggered.connect(self.bwv_encode_clicked)
+        self.help_menu.addAction(self.help_menu_bwv_encode)
 
         self.help_menu_about = QAction("About...", self)
         self.help_menu_about.triggered.connect(self.about_clicked)
@@ -820,6 +824,9 @@ class MyQMainWindow(QMainWindow):
         popup = dialogs.HotkeysInfo(parent=self)
 
         result = popup.exec()
+
+    def bwv_encode_clicked(self):
+        QDesktopServices.openUrl(QUrl(constants.BWV_ENCODE_URL))
 
     def about_clicked(self):
         popup = dialogs.About(parent=self)

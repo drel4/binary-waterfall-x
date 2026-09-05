@@ -59,9 +59,12 @@ class MainWindow:
 
 
 def main(args):
-    if constants.HAS_SPLASH:
+    try:
         import pyi_splash
         pyi_splash.close()
+    except ImportError:
+        # pyi_splash exists only in a PyInstaller splash build.
+        pass
 
     main_window = MainWindow(args)
     main_window.run()

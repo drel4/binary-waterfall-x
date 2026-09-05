@@ -66,5 +66,12 @@ https://github.com/nimaid/binary-waterfall
 
 `.bwv` is a filename-extension convention used by this fork; the raw format has no embedded header.
 
+## External Resources
+
+- [bwv_encode](https://github.com/randomtypek/bwv_encode) — external video encoder that produces raw
+  files for Binary Waterfall. It is a separate project maintained by its own authors.
+- [Original Binary Waterfall](https://github.com/nimaid/binary-waterfall) — upstream project this fork
+  is based on.
+
 ## Showcase Video
 [<img src="https://i.ytimg.com/vi/gZRWbv_aob0/maxresdefault.jpg" width="300px">](https://www.youtube.com/watch?v=gZRWbv_aob0 "Microsoft Paint Remix")

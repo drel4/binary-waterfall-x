@@ -6,7 +6,7 @@ from .enums import (
     VideoCodecCode, AudioCodecCode, EncoderPresetCode, AlignmentCode, TimingModeCode
 )
 from .resources import RESOURCE_PATH, ICON_PATHS
-from .links import PROJECT_URL, DONATE_URL
+from .links import PROJECT_URL, UPSTREAM_URL, BWV_ENCODE_URL, DONATE_URL
 from .colors import COLORS
 from .splash import HAS_SPLASH
 from .defaults import DEFAULTS

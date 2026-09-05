@@ -1148,7 +1148,9 @@ class About(QDialog):
         self.about_text = QLabel(
             f"{constants.TITLE} v{constants.VERSION}\nby {constants.COPYRIGHT}\n© Copyright 2023\n\n"
             f"{constants.DESCRIPTION}\n\n"
-            f"Project Home Page:\n{constants.PROJECT_URL}\n\n"
+            f"Active Fork:\n{constants.PROJECT_URL}\n\n"
+            f"Original Project:\n{constants.UPSTREAM_URL}\n\n"
+            f"External BWV Encoder:\n{constants.BWV_ENCODE_URL}\n\n"
             f"Donate:\n{constants.DONATE_URL}")
         self.about_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
 

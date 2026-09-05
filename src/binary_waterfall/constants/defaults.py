@@ -14,7 +14,9 @@ DEFAULTS = {
     "flip_h": False,
     "max_dim": 512,
     "player_fps": 120,
-    "timing_mode": enums.TimingModeCode.OFF,
+    # Make bwv_encode output work out of the box while preserving legacy
+    # QMediaPlayer timing for every other file type.
+    "timing_mode": enums.TimingModeCode.BWV_ONLY,
     "bwv_quick_settings": True,
     "bwv_width": 48,
     "bwv_height": 48,

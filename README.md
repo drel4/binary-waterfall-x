@@ -53,14 +53,14 @@ https://github.com/nimaid/binary-waterfall
 
 ## Fork Features
 
-- **Selectable frame timing:** Settings → Player offers a tri-state timing control:
+- **Selectable frame timing:** Settings → BWX offers a tri-state timing control:
   **Off** follows `QMediaPlayer`, **BWV-only** uses an elapsed clock for `.bwv` files, and
   **On** uses the elapsed clock for every file. The selection is saved between launches.
 - **BWV Quick Settings:** optionally prompts when opening `.bwv` output from
   [bwv_encode](https://github.com/randomtypek/bwv_encode). It supports the encoder's grayscale/RGB
   layouts and 25/20/10/5 FPS choices, fixes audio at stereo 32-bit, and asks for the width, height,
   and sample rate printed by the encoder. It also applies Frame End alignment, hides the playhead,
-  and enables the encoder's default vertical flip. Toggle the prompt under Settings.
+  and enables the encoder's default vertical flip. Toggle the prompt under Settings → BWX.
 - **Drag and drop:** drop a local file onto the main window to open it.
 - **Reliable playback controls:** play/pause tracks intended state and Play restarts files that have
   reached the end.

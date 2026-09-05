@@ -213,11 +213,9 @@ class MyQMainWindow(QMainWindow):
         self.settings_menu_player.triggered.connect(self.player_settings_clicked)
         self.settings_menu.addAction(self.settings_menu_player)
 
-        self.settings_menu_bwv_quick = QAction("BWV Quick Settings on Open", self)
-        self.settings_menu_bwv_quick.setCheckable(True)
-        self.settings_menu_bwv_quick.setChecked(self.preferences.bwv_quick_settings_enabled())
-        self.settings_menu_bwv_quick.toggled.connect(self.bwv_quick_settings_toggled)
-        self.settings_menu.addAction(self.settings_menu_bwv_quick)
+        self.settings_menu_bwx = QAction("BWX...", self)
+        self.settings_menu_bwx.triggered.connect(self.bwx_settings_clicked)
+        self.settings_menu.addAction(self.settings_menu_bwx)
 
         self.export_menu = self.main_menu.addMenu("Export")
         self.export_menu.setEnabled(False)
@@ -468,9 +466,6 @@ class MyQMainWindow(QMainWindow):
         QTimer.singleShot(10, self.resize_window)
         return True
 
-    def bwv_quick_settings_toggled(self, enabled):
-        self.preferences.set_bwv_quick_settings_enabled(enabled)
-
     def close_file_clicked(self):
         self.pause_player()
 
@@ -547,7 +542,6 @@ class MyQMainWindow(QMainWindow):
         popup = dialogs.PlayerSettings(
             max_view_dim=self.player.max_dim,
             fps=self.player.fps,
-            timing_mode=self.player.timing_mode,
             parent=self
         )
 
@@ -556,11 +550,22 @@ class MyQMainWindow(QMainWindow):
         if result:
             player_settings = popup.get_player_settings()
             self.player.set_fps(fps=player_settings["fps"])
-            self.player.set_timing_mode(player_settings["timing_mode"])
-            self.preferences.set_timing_mode(player_settings["timing_mode"])
             self.player.update_dims(max_dim=player_settings["max_view_dim"])
             # We need to wait a moment for the size hint to be computed
             QTimer.singleShot(10, self.resize_window)
+
+    def bwx_settings_clicked(self):
+        popup = dialogs.BwxSettings(
+            timing_mode=self.player.timing_mode,
+            bwv_quick_settings=self.preferences.bwv_quick_settings_enabled(),
+            parent=self
+        )
+
+        if popup.exec():
+            settings = popup.get_settings()
+            self.player.set_timing_mode(settings["timing_mode"])
+            self.preferences.set_timing_mode(settings["timing_mode"])
+            self.preferences.set_bwv_quick_settings_enabled(settings["bwv_quick_settings"])
 
     def export_image_clicked(self):
         if self.bw.audio_filename is None:

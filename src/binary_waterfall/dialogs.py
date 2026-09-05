@@ -326,7 +326,6 @@ class PlayerSettings(QDialog):
     def __init__(self,
                  max_view_dim,
                  fps,
-                 timing_mode,
                  parent=None
                  ):
         super().__init__(parent=parent)
@@ -338,7 +337,6 @@ class PlayerSettings(QDialog):
 
         self.max_view_dim = max_view_dim
         self.fps = fps
-        self.timing_mode = timing_mode
 
         self.max_dim_label = QLabel("Max. Dimension:")
         self.max_dim_label.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
@@ -362,9 +360,53 @@ class PlayerSettings(QDialog):
         self.fps_entry.setValue(self.fps)
         self.fps_entry.valueChanged.connect(self.fps_entry_changed)
 
-        self.timing_label = QLabel("Frame Timing:")
-        self.timing_label.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
+        self.confirm_buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.confirm_buttons.accepted.connect(self.accept)
+        self.confirm_buttons.rejected.connect(self.reject)
 
+        self.main_layout = QGridLayout()
+
+        self.main_layout.addWidget(self.max_dim_label, 0, 0)
+        self.main_layout.addWidget(self.max_dim_entry, 0, 1)
+        self.main_layout.addWidget(self.fps_label, 1, 0)
+        self.main_layout.addWidget(self.fps_entry, 1, 1)
+        self.main_layout.addWidget(self.confirm_buttons, 2, 0, 1, 2)
+
+        self.setLayout(self.main_layout)
+
+        self.resize_window()
+
+    def get_player_settings(self):
+        result = dict()
+        result["max_view_dim"] = self.max_view_dim
+        result["fps"] = self.fps
+
+        return result
+
+    def max_dim_entry_changed(self, value):
+        self.max_view_dim = value
+
+    def fps_entry_changed(self, value):
+        self.fps = value
+
+    def resize_window(self):
+        self.setFixedSize(self.sizeHint())
+
+
+class BwxSettings(QDialog):
+    """Settings specific to the Binary Waterfall X fork."""
+
+    def __init__(self, timing_mode, bwv_quick_settings, parent=None):
+        super().__init__(parent=parent)
+        self.setWindowTitle("BWX Settings")
+        self.setWindowIcon(QIcon(constants.ICON_PATHS["program"]))
+        self.setWindowFlags(self.windowFlags() ^ Qt.WindowContextHelpButtonHint)
+
+        self.timing_mode = timing_mode
+        self.bwv_quick_settings = bwv_quick_settings
+
+        self.timing_label = QLabel("Frame Timing:")
+        self.timing_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.timing_entry = QCheckBox()
         self.timing_entry.setTristate(True)
         self.timing_entry.setToolTip("Off: media position; partial: clock for .bwv; checked: clock for all files")
@@ -376,37 +418,24 @@ class PlayerSettings(QDialog):
         self.update_timing_text()
         self.timing_entry.stateChanged.connect(self.timing_entry_changed)
 
+        self.quick_label = QLabel("BWV files:")
+        self.quick_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.quick_entry = QCheckBox("Show Quick Settings on open")
+        self.quick_entry.setChecked(self.bwv_quick_settings)
+        self.quick_entry.toggled.connect(self.quick_entry_changed)
+
         self.confirm_buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         self.confirm_buttons.accepted.connect(self.accept)
         self.confirm_buttons.rejected.connect(self.reject)
 
-        self.main_layout = QGridLayout()
-
-        self.main_layout.addWidget(self.max_dim_label, 0, 0)
-        self.main_layout.addWidget(self.max_dim_entry, 0, 1)
-        self.main_layout.addWidget(self.fps_label, 1, 0)
-        self.main_layout.addWidget(self.fps_entry, 1, 1)
-        self.main_layout.addWidget(self.timing_label, 2, 0)
-        self.main_layout.addWidget(self.timing_entry, 2, 1)
-        self.main_layout.addWidget(self.confirm_buttons, 3, 0, 1, 2)
-
-        self.setLayout(self.main_layout)
-
-        self.resize_window()
-
-    def get_player_settings(self):
-        result = dict()
-        result["max_view_dim"] = self.max_view_dim
-        result["fps"] = self.fps
-        result["timing_mode"] = self.timing_mode
-
-        return result
-
-    def max_dim_entry_changed(self, value):
-        self.max_view_dim = value
-
-    def fps_entry_changed(self, value):
-        self.fps = value
+        layout = QGridLayout()
+        layout.addWidget(self.timing_label, 0, 0)
+        layout.addWidget(self.timing_entry, 0, 1)
+        layout.addWidget(self.quick_label, 1, 0)
+        layout.addWidget(self.quick_entry, 1, 1)
+        layout.addWidget(self.confirm_buttons, 2, 0, 1, 2)
+        self.setLayout(layout)
+        self.setFixedSize(self.sizeHint())
 
     def timing_entry_changed(self, state):
         self.timing_mode = {
@@ -423,8 +452,14 @@ class PlayerSettings(QDialog):
             constants.TimingModeCode.ON: "On (elapsed clock for all files)"
         }[self.timing_mode])
 
-    def resize_window(self):
-        self.setFixedSize(self.sizeHint())
+    def quick_entry_changed(self, enabled):
+        self.bwv_quick_settings = enabled
+
+    def get_settings(self):
+        return {
+            "timing_mode": self.timing_mode,
+            "bwv_quick_settings": self.bwv_quick_settings
+        }
 
 
 class BwvQuickSettings(QDialog):

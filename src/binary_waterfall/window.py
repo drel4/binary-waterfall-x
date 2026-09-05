@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtGui import QPixmap, QIcon
 
-from . import constants, generators, outputs, widgets, dialogs
+from . import constants, generators, outputs, widgets, dialogs, preferences
 
 
 # My QMainWindow class
@@ -18,6 +18,7 @@ class MyQMainWindow(QMainWindow):
         super().__init__()
         self.file_savename = None
         self.muted = None
+        self.preferences = preferences.Preferences()
 
         self.setWindowTitle(f"{constants.TITLE}")
         self.setWindowIcon(QIcon(constants.ICON_PATHS["program"]))
@@ -49,6 +50,7 @@ class MyQMainWindow(QMainWindow):
             set_playbutton_function=self.set_play_button,
             set_seekbar_function=self.seek_bar.setValue
         )
+        self.player.set_timing_mode(self.preferences.timing_mode())
 
         self.current_volume = self.player.volume
 
@@ -211,6 +213,12 @@ class MyQMainWindow(QMainWindow):
         self.settings_menu_player.triggered.connect(self.player_settings_clicked)
         self.settings_menu.addAction(self.settings_menu_player)
 
+        self.settings_menu_bwv_quick = QAction("BWV Quick Settings on Open", self)
+        self.settings_menu_bwv_quick.setCheckable(True)
+        self.settings_menu_bwv_quick.setChecked(self.preferences.bwv_quick_settings_enabled())
+        self.settings_menu_bwv_quick.toggled.connect(self.bwv_quick_settings_toggled)
+        self.settings_menu.addAction(self.settings_menu_bwv_quick)
+
         self.export_menu = self.main_menu.addMenu("Export")
         self.export_menu.setEnabled(False)
 
@@ -241,6 +249,7 @@ class MyQMainWindow(QMainWindow):
         self.help_menu.addAction(self.help_menu_about)
 
         self.set_volume(self.current_volume)
+        self.setAcceptDrops(True)
 
         # Set window to content size
         self.resize_window()
@@ -268,6 +277,19 @@ class MyQMainWindow(QMainWindow):
             self.player.frame_back()
         elif key == Qt.Key_Period:
             self.player.frame_forward()
+
+    def dragEnterEvent(self, event):
+        urls = event.mimeData().urls() if event.mimeData().hasUrls() else []
+        if any(url.isLocalFile() and os.path.isfile(url.toLocalFile()) for url in urls):
+            event.acceptProposedAction()
+
+    def dropEvent(self, event):
+        for url in event.mimeData().urls():
+            filename = url.toLocalFile()
+            if url.isLocalFile() and os.path.isfile(filename):
+                if self.open_file(filename):
+                    event.acceptProposedAction()
+                return
 
     def resize_window(self):
         # First, make largest elements smaller
@@ -397,19 +419,50 @@ class MyQMainWindow(QMainWindow):
         )
 
         if filename != "":
-            self.player.open_file(filename=filename)
+            self.open_file(filename)
 
-            file_path, file_title = os.path.split(filename)
-            file_savename, file_ext = os.path.splitext(file_title)
-            self.set_file_savename(file_savename)
-            self.setWindowTitle(f"{constants.TITLE} | {file_title}")
+    def open_file(self, filename):
+        is_bwv = self.player.is_bwv_file(filename)
+        timing_enabled = self.player.timing_mode != constants.TimingModeCode.OFF
+        if is_bwv and timing_enabled and self.preferences.bwv_quick_settings_enabled():
+            popup = dialogs.BwvQuickSettings(self.preferences.bwv_settings(), parent=self)
+            if not popup.exec():
+                return False
+            bwv_settings = popup.get_settings()
+            self.preferences.set_bwv_settings(bwv_settings)
 
-            self.last_load_location = filename
+            # Apply all raw-stream metadata before opening so audio is generated once.
+            self.player.close_file()
+            self.bw.set_dims(width=bwv_settings["width"], height=bwv_settings["height"])
+            color_format = (
+                "wxxx" if bwv_settings["color_mode"] == constants.ColorModeCode.GRAYSCALE
+                else "rxxxgxxxbxxx"
+            )
+            self.bw.set_color_format(color_format)
+            self.bw.set_audio_settings(
+                num_channels=2,
+                sample_bytes=4,
+                sample_rate=bwv_settings["sample_rate"],
+                volume=self.bw.volume
+            )
+            self.player.set_fps(bwv_settings["fps"])
+            self.player.refresh_dims()
 
-            self.update_seekbar()
+        self.player.open_file(filename=filename)
 
-            self.export_menu.setEnabled(True)
-            self.file_menu_close.setEnabled(True)
+        file_path, file_title = os.path.split(filename)
+        file_savename, file_ext = os.path.splitext(file_title)
+        self.set_file_savename(file_savename)
+        self.setWindowTitle(f"{constants.TITLE} | {file_title}")
+        self.last_load_location = filename
+        self.update_seekbar()
+        self.export_menu.setEnabled(True)
+        self.file_menu_close.setEnabled(True)
+        QTimer.singleShot(10, self.resize_window)
+        return True
+
+    def bwv_quick_settings_toggled(self, enabled):
+        self.preferences.set_bwv_quick_settings_enabled(enabled)
 
     def close_file_clicked(self):
         self.pause_player()
@@ -487,6 +540,7 @@ class MyQMainWindow(QMainWindow):
         popup = dialogs.PlayerSettings(
             max_view_dim=self.player.max_dim,
             fps=self.player.fps,
+            timing_mode=self.player.timing_mode,
             parent=self
         )
 
@@ -495,6 +549,8 @@ class MyQMainWindow(QMainWindow):
         if result:
             player_settings = popup.get_player_settings()
             self.player.set_fps(fps=player_settings["fps"])
+            self.player.set_timing_mode(player_settings["timing_mode"])
+            self.preferences.set_timing_mode(player_settings["timing_mode"])
             self.player.update_dims(max_dim=player_settings["max_view_dim"])
             # We need to wait a moment for the size hint to be computed
             QTimer.singleShot(10, self.resize_window)

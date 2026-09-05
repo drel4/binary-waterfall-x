@@ -6,7 +6,7 @@ import tempfile
 import pydub
 from moviepy.editor import ImageSequenceClip, AudioFileClip
 from PIL import Image
-from PyQt5.QtCore import QUrl
+from PyQt5.QtCore import QElapsedTimer, QTimer, QUrl
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 from PyQt5.QtGui import QImage, QPixmap
 
@@ -32,6 +32,9 @@ class Player:
         self.width = None
         self.dim = None
         self.max_dim = None
+        self.timing_mode = constants.DEFAULTS["timing_mode"]
+        self.intended_playing = False
+        self.clock_anchor_ms = 0
 
         self.bw = binary_waterfall
 
@@ -53,9 +56,12 @@ class Player:
         # Set audio playback settings
         self.set_volume(100)
 
-        # Set set_image_timestamp to run when the audio position is changed
-        self.audio.positionChanged.connect(self.set_image_timestamp)
-        self.audio.positionChanged.connect(self.set_seekbar_if_given)
+        # Legacy timing follows QMediaPlayer. Clock timing is driven by a
+        # monotonic elapsed timer and selected through set_timing_mode().
+        self.audio.positionChanged.connect(self.position_changed_handler)
+        self.elapsed_clock = QElapsedTimer()
+        self.frame_timer = QTimer()
+        self.frame_timer.timeout.connect(self.clock_tick)
         # Also, make sure it's updating more frequently (default is too slow when playing)
         self.fps_min = 1
         self.fps_max = 120
@@ -82,6 +88,29 @@ class Player:
         self.fps = min(max(fps, self.fps_min), self.fps_max)
         self.frame_ms = math.floor(1000 / self.fps)
         self.audio.setNotifyInterval(self.frame_ms)
+        self.frame_timer.setInterval(self.frame_ms)
+
+    @staticmethod
+    def is_bwv_file(filename):
+        return filename is not None and os.path.splitext(filename)[1].lower() == ".bwv"
+
+    def clock_timing_enabled(self):
+        if self.timing_mode == constants.TimingModeCode.ON:
+            return True
+        return (
+            self.timing_mode == constants.TimingModeCode.BWV_ONLY
+            and self.is_bwv_file(self.bw.filename)
+        )
+
+    def set_timing_mode(self, mode):
+        current_position = self.get_position()
+        self.timing_mode = mode
+        self.clock_anchor_ms = current_position
+        if self.intended_playing and self.clock_timing_enabled():
+            self.elapsed_clock.restart()
+            self.frame_timer.start()
+        else:
+            self.frame_timer.stop()
 
     def clear_image(self):
         background_image = Image.new(
@@ -134,10 +163,15 @@ class Player:
         self.display.setPixmap(qpixmap)
 
     def get_position(self):
+        if self.intended_playing and self.clock_timing_enabled() and self.elapsed_clock.isValid():
+            return min(self.clock_anchor_ms + self.elapsed_clock.elapsed(), self.get_duration())
         return self.audio.position()
 
     def get_duration(self):
-        return self.audio.duration()
+        duration = self.audio.duration()
+        if duration <= 0 and self.bw.audio_length_ms is not None:
+            return self.bw.audio_length_ms
+        return duration
 
     def set_position(self, ms):
         duration = self.get_duration()
@@ -151,6 +185,13 @@ class Player:
 
         if self.bw.filename is not None:
             self.audio.setPosition(ms)
+
+        self.clock_anchor_ms = ms
+        if self.intended_playing and self.clock_timing_enabled():
+            self.elapsed_clock.restart()
+
+        self.set_image_timestamp(ms)
+        self.set_seekbar_if_given(ms)
 
         # If the file is at the end, pause
         if ms == duration:
@@ -166,16 +207,41 @@ class Player:
 
     def state_changed_handler(self, media_state):
         if media_state == self.audio.PlayingState:
-            self.set_playbutton_if_given(play=False)
-        elif media_state == self.audio.PausedState:
-            self.set_playbutton_if_given(play=True)
-        elif media_state == self.audio.StoppedState:
+            if not self.intended_playing:
+                self.audio.pause()
+        elif media_state == self.audio.StoppedState and self.intended_playing:
+            self.intended_playing = False
+            self.frame_timer.stop()
             self.set_playbutton_if_given(play=True)
 
     def play(self):
+        if self.bw.filename is None:
+            return
+        duration = self.get_duration()
+        start_position = self.get_position()
+        if duration > 0 and start_position >= duration - max(self.frame_ms, 50):
+            self.set_position(0)
+            start_position = 0
+        self.intended_playing = True
+        self.set_playbutton_if_given(play=False)
+        # Keep the explicit restart position even if QMediaPlayer has not yet
+        # reported the asynchronous seek back from EOF.
+        self.clock_anchor_ms = start_position
+        if self.clock_timing_enabled():
+            self.elapsed_clock.restart()
+            self.frame_timer.start()
         self.audio.play()
 
     def pause(self):
+        if self.intended_playing and self.clock_timing_enabled():
+            position = self.get_position()
+            self.audio.setPosition(position)
+            self.clock_anchor_ms = position
+            self.set_image_timestamp(position)
+            self.set_seekbar_if_given(position)
+        self.intended_playing = False
+        self.frame_timer.stop()
+        self.set_playbutton_if_given(play=True)
         self.audio.pause()
 
     def forward(self, ms=5000):
@@ -231,10 +297,22 @@ class Player:
             return True
 
     def is_playing(self):
-        if self.audio.state() == self.audio.PlayingState:
-            return True
-        else:
-            return False
+        return self.intended_playing
+
+    def position_changed_handler(self, ms):
+        if not self.clock_timing_enabled():
+            self.set_image_timestamp(ms)
+            self.set_seekbar_if_given(ms)
+
+    def clock_tick(self):
+        if not self.intended_playing or not self.clock_timing_enabled():
+            self.frame_timer.stop()
+            return
+        position = self.get_position()
+        self.set_image_timestamp(position)
+        self.set_seekbar_if_given(position)
+        if position >= self.get_duration():
+            self.set_position(self.get_duration())
 
     def set_image_timestamp(self, ms):
         if self.bw.filename is None:

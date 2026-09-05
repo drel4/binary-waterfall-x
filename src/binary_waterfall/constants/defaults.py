@@ -13,5 +13,12 @@ DEFAULTS = {
     "flip_v": True,
     "flip_h": False,
     "max_dim": 512,
-    "player_fps": 120
+    "player_fps": 120,
+    "timing_mode": enums.TimingModeCode.OFF,
+    "bwv_quick_settings": True,
+    "bwv_width": 48,
+    "bwv_height": 48,
+    "bwv_fps": 25,
+    "bwv_sample_rate": 32000,
+    "bwv_color_mode": enums.ColorModeCode.GRAYSCALE
 }

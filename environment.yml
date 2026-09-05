@@ -12,5 +12,5 @@ dependencies:
     - PyQt5
     - pydub
     - Pillow
-    - moviepy
+    - moviepy<2
     - proglog

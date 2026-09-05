@@ -3,7 +3,7 @@ import webbrowser
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
     QGridLayout, QLabel, QPushButton, QDialog, QDialogButtonBox, QComboBox, QLineEdit, QCheckBox, QSpinBox,
-    QDoubleSpinBox, QMessageBox
+    QDoubleSpinBox, QMessageBox, QButtonGroup, QHBoxLayout
 )
 from PyQt5.QtGui import QPixmap, QIcon
 
@@ -326,6 +326,7 @@ class PlayerSettings(QDialog):
     def __init__(self,
                  max_view_dim,
                  fps,
+                 timing_mode,
                  parent=None
                  ):
         super().__init__(parent=parent)
@@ -337,6 +338,7 @@ class PlayerSettings(QDialog):
 
         self.max_view_dim = max_view_dim
         self.fps = fps
+        self.timing_mode = timing_mode
 
         self.max_dim_label = QLabel("Max. Dimension:")
         self.max_dim_label.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
@@ -360,6 +362,20 @@ class PlayerSettings(QDialog):
         self.fps_entry.setValue(self.fps)
         self.fps_entry.valueChanged.connect(self.fps_entry_changed)
 
+        self.timing_label = QLabel("Frame Timing:")
+        self.timing_label.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
+
+        self.timing_entry = QCheckBox()
+        self.timing_entry.setTristate(True)
+        self.timing_entry.setToolTip("Off: media position; partial: clock for .bwv; checked: clock for all files")
+        self.timing_entry.setCheckState({
+            constants.TimingModeCode.OFF: Qt.Unchecked,
+            constants.TimingModeCode.BWV_ONLY: Qt.PartiallyChecked,
+            constants.TimingModeCode.ON: Qt.Checked
+        }[self.timing_mode])
+        self.update_timing_text()
+        self.timing_entry.stateChanged.connect(self.timing_entry_changed)
+
         self.confirm_buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         self.confirm_buttons.accepted.connect(self.accept)
         self.confirm_buttons.rejected.connect(self.reject)
@@ -370,7 +386,9 @@ class PlayerSettings(QDialog):
         self.main_layout.addWidget(self.max_dim_entry, 0, 1)
         self.main_layout.addWidget(self.fps_label, 1, 0)
         self.main_layout.addWidget(self.fps_entry, 1, 1)
-        self.main_layout.addWidget(self.confirm_buttons, 2, 0, 1, 2)
+        self.main_layout.addWidget(self.timing_label, 2, 0)
+        self.main_layout.addWidget(self.timing_entry, 2, 1)
+        self.main_layout.addWidget(self.confirm_buttons, 3, 0, 1, 2)
 
         self.setLayout(self.main_layout)
 
@@ -380,6 +398,7 @@ class PlayerSettings(QDialog):
         result = dict()
         result["max_view_dim"] = self.max_view_dim
         result["fps"] = self.fps
+        result["timing_mode"] = self.timing_mode
 
         return result
 
@@ -389,8 +408,125 @@ class PlayerSettings(QDialog):
     def fps_entry_changed(self, value):
         self.fps = value
 
+    def timing_entry_changed(self, state):
+        self.timing_mode = {
+            Qt.Unchecked: constants.TimingModeCode.OFF,
+            Qt.PartiallyChecked: constants.TimingModeCode.BWV_ONLY,
+            Qt.Checked: constants.TimingModeCode.ON
+        }[state]
+        self.update_timing_text()
+
+    def update_timing_text(self):
+        self.timing_entry.setText({
+            constants.TimingModeCode.OFF: "Off (media position)",
+            constants.TimingModeCode.BWV_ONLY: "BWV-only (elapsed clock)",
+            constants.TimingModeCode.ON: "On (elapsed clock for all files)"
+        }[self.timing_mode])
+
     def resize_window(self):
         self.setFixedSize(self.sizeHint())
+
+
+class BwvQuickSettings(QDialog):
+    """Collect the metadata that bwv_encode's raw output does not contain."""
+
+    FPS_VALUES = (25, 20, 10, 5)
+
+    def __init__(self, settings, parent=None):
+        super().__init__(parent=parent)
+        self.setWindowTitle("BWV Quick Settings")
+        self.setWindowIcon(QIcon(constants.ICON_PATHS["program"]))
+        self.setWindowFlags(self.windowFlags() ^ Qt.WindowContextHelpButtonHint)
+
+        self.width = settings["width"]
+        self.height = settings["height"]
+        self.fps = settings["fps"] if settings["fps"] in self.FPS_VALUES else 25
+        self.sample_rate = settings["sample_rate"]
+        self.color_mode = settings["color_mode"]
+
+        self.color_label = QLabel("Color format:")
+        self.color_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.grayscale_button = QPushButton("Grayscale")
+        self.rgb_button = QPushButton("RGB")
+        for button in (self.grayscale_button, self.rgb_button):
+            button.setCheckable(True)
+        self.color_group = QButtonGroup(self)
+        self.color_group.setExclusive(True)
+        self.color_group.addButton(self.grayscale_button, constants.ColorModeCode.GRAYSCALE.value)
+        self.color_group.addButton(self.rgb_button, constants.ColorModeCode.RGB.value)
+        self.color_group.button(self.color_mode.value).setChecked(True)
+        self.color_group.buttonClicked[int].connect(self.color_mode_changed)
+        self.color_layout = QHBoxLayout()
+        self.color_layout.addWidget(self.grayscale_button)
+        self.color_layout.addWidget(self.rgb_button)
+
+        self.fps_label = QLabel("FPS:")
+        self.fps_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.fps_entry = QComboBox()
+        self.fps_entry.addItems([str(value) for value in self.FPS_VALUES])
+        self.fps_entry.setCurrentText(str(self.fps))
+        self.fps_entry.currentTextChanged.connect(lambda value: setattr(self, "fps", int(value)))
+
+        self.width_label = QLabel("Width:")
+        self.width_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.width_entry = QSpinBox()
+        self.width_entry.setRange(4, 16384)
+        self.width_entry.setValue(self.width)
+        self.width_entry.valueChanged.connect(lambda value: setattr(self, "width", value))
+
+        self.height_label = QLabel("Height:")
+        self.height_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.height_entry = QSpinBox()
+        self.height_entry.setRange(4, 16384)
+        self.height_entry.setValue(self.height)
+        self.height_entry.valueChanged.connect(lambda value: setattr(self, "height", value))
+
+        self.sample_rate_label = QLabel("Sample rate:")
+        self.sample_rate_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.sample_rate_entry = QSpinBox()
+        self.sample_rate_entry.setRange(1, 2147483647)
+        self.sample_rate_entry.setValue(self.sample_rate)
+        self.sample_rate_entry.setSuffix(" Hz")
+        self.sample_rate_entry.valueChanged.connect(lambda value: setattr(self, "sample_rate", value))
+
+        self.audio_value = QLabel("Stereo, 32-bit (fixed by bwv_encode)")
+        self.audio_label = QLabel("Audio:")
+        self.audio_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
+        self.note = QLabel("Enter the width, height, and sample rate printed by bwv_encode.")
+        self.confirm_buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.confirm_buttons.accepted.connect(self.accept)
+        self.confirm_buttons.rejected.connect(self.reject)
+
+        layout = QGridLayout()
+        layout.addWidget(self.note, 0, 0, 1, 2)
+        layout.addWidget(self.color_label, 1, 0)
+        layout.addLayout(self.color_layout, 1, 1)
+        layout.addWidget(self.fps_label, 2, 0)
+        layout.addWidget(self.fps_entry, 2, 1)
+        layout.addWidget(self.width_label, 3, 0)
+        layout.addWidget(self.width_entry, 3, 1)
+        layout.addWidget(self.height_label, 4, 0)
+        layout.addWidget(self.height_entry, 4, 1)
+        layout.addWidget(self.sample_rate_label, 5, 0)
+        layout.addWidget(self.sample_rate_entry, 5, 1)
+        layout.addWidget(self.audio_label, 6, 0)
+        layout.addWidget(self.audio_value, 6, 1)
+        layout.addWidget(self.confirm_buttons, 7, 0, 1, 2)
+        self.setLayout(layout)
+        self.setFixedSize(self.sizeHint())
+
+    def color_mode_changed(self, value):
+        self.color_mode = constants.ColorModeCode(value)
+
+    def get_settings(self):
+        return {
+            "width": self.width,
+            "height": self.height,
+            "fps": self.fps,
+            "sample_rate": self.sample_rate,
+            "color_mode": self.color_mode
+        }
 
 
 # Export image dialog

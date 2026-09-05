@@ -73,3 +73,9 @@ class AlignmentCode(Enum):
     START = 0
     END = 1
     MIDDLE = 2
+
+
+class TimingModeCode(Enum):
+    OFF = 0
+    BWV_ONLY = 1
+    ON = 2
